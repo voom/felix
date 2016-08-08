@@ -16,16 +16,14 @@
  */
 package org.apache.felix.useradmin.mongodb;
 
-import java.net.UnknownHostException;
+import com.mongodb.*;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.mongodb.DB;
-import com.mongodb.DBCollection;
-import com.mongodb.Mongo;
-import com.mongodb.MongoException;
-import com.mongodb.ServerAddress;
+import static java.util.Collections.singletonList;
 
 /**
  * Provides a simple facade for accessing MongoDB.
@@ -87,9 +85,6 @@ final class MongoDB {
             catch (NumberFormatException e) {
                 throw new IllegalArgumentException("Illegal port number in: " + part);
             }
-            catch (UnknownHostException e) {
-                throw new IllegalArgumentException("Unknown host: " + part);
-            }
         }
 
         if (servers.isEmpty()) {
@@ -104,26 +99,29 @@ final class MongoDB {
      * 
      * @param userName the optional user name to use;
      * @param password the optional password to use.
-     * @return <code>true</code> if the connection was succesful, <code>false</code> otherwise.
+     * @throws MongoException if connection failed
      */
-    public boolean connect(String userName, String password) {
-        Mongo newMongo = new Mongo(m_servers);
+    public void connect(String userName, String password) throws MongoException {
+        MongoClient newMongo = new MongoClient(m_servers, createCredentials(userName, password));
 
         Mongo oldMongo;
         do {
             oldMongo = m_mongoRef.get();
         } while (!m_mongoRef.compareAndSet(oldMongo, newMongo));
-        
-        DB db = newMongo.getDB(m_dbName);
-        if ((userName != null) && (password != null)) {
-            if (!db.authenticate(userName, password.toCharArray())) {
-                return false;
-            }
+
+        try {
+            newMongo.getDatabase(m_dbName);
+        } catch (Exception ex) {
+            throw new MongoException("Failed to connect to MongoDB!", ex);
         }
-        
-        return true;
     }
-    
+
+    private List<MongoCredential> createCredentials(String userName, String password) {
+        return userName != null && password != null
+                ? singletonList(MongoCredential.createCredential(userName, m_dbName, password.toCharArray()))
+                : Collections.<MongoCredential>emptyList();
+    }
+
     /**
      * Returns the database collection to work in.
      * 

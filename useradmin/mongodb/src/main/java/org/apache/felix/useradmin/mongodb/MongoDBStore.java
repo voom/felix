@@ -141,11 +141,7 @@ public class MongoDBStore implements RoleProvider, RoleRepositoryStore, UserAdmi
         // Role does not exist; insert it...
         DBObject data = m_helper.serialize(roleName, type);
 
-        WriteResult result = coll.insert(data);
-        
-        if (result.getLastError() != null) {
-            result.getLastError().throwOnError();
-        }
+        coll.insert(data);
 
         // FELIX-4400: ensure we return the correct role...
         return getRole(roleName);
@@ -219,11 +215,7 @@ public class MongoDBStore implements RoleProvider, RoleRepositoryStore, UserAdmi
             return null;
         }
 
-        WriteResult result = coll.remove(getTemplateObject(role));
-
-        if (result.getLastError() != null) {
-            result.getLastError().throwOnError();
-        }
+        coll.remove(getTemplateObject(role));
 
         return role;
     }
@@ -241,11 +233,8 @@ public class MongoDBStore implements RoleProvider, RoleRepositoryStore, UserAdmi
                 DBObject query = getTemplateObject(changedRole);
                 DBObject update = m_helper.serializeUpdate(changedRole);
 
-                WriteResult result = coll.update(query, update, false /* upsert */, false /* multi */);
+                coll.update(query, update, false /* upsert */, false /* multi */);
 
-                if (result.getLastError() != null) {
-                    result.getLastError().throwOnError();
-                }
             }
             catch (MongoException e) {
                 m_log.log(LogService.LOG_WARNING, "Failed to update changed role: " + changedRole.getName(), e);
@@ -309,16 +298,14 @@ public class MongoDBStore implements RoleProvider, RoleRepositoryStore, UserAdmi
      * @throws MongoException in case the connection or authentication failed.
      */
     private void connectToDB(MongoDB mongoDB, String userName, String password) throws MongoException {
-        if (!mongoDB.connect(userName, password)) {
-            throw new MongoException("Failed to connect to MongoDB! Authentication failed!");
-        }
+        mongoDB.connect(userName, password);
 
         DBCollection collection = mongoDB.getCollection();
         if (collection == null) {
             throw new MongoException("Failed to connect to MongoDB! No collection returned!");
         }
 
-        collection.ensureIndex(new BasicDBObject(NAME, 1).append("unique", true));
+        collection.createIndex(new BasicDBObject(NAME, 1).append("unique", true));
     }
     
     /**
