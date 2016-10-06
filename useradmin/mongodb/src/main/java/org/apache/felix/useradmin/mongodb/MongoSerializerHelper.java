@@ -16,7 +16,6 @@
  */
 package org.apache.felix.useradmin.mongodb;
 
-import com.mongodb.BasicDBList;
 import com.mongodb.MongoException;
 import org.apache.felix.useradmin.RoleFactory;
 import org.bson.Document;
@@ -74,11 +73,11 @@ final class MongoSerializerHelper {
             deserializeDictionary(((User) result).getCredentials(), (Document) object.get(CREDENTIALS));
 
             if (Role.GROUP == type) {
-                for (Role member : getRoles((BasicDBList) object.get(MEMBERS))) {
+                for (Role member : getRoles((List) object.get(MEMBERS))) {
                     ((Group) result).addMember(member);
                 }
 
-                for (Role member : getRoles((BasicDBList) object.get(REQUIRED_MEMBERS))) {
+                for (Role member : getRoles((List) object.get(REQUIRED_MEMBERS))) {
                     ((Group) result).addRequiredMember(member);
                 }
             }
@@ -140,22 +139,16 @@ final class MongoSerializerHelper {
         int type = role.getType();
 
         Document changeSet = new Document();
+        changeSet.put(PROPERTIES, serializeDictionary(role.getProperties()));
 
-        Document properties = serializeDictionary(role.getProperties());
-        if (!properties.isEmpty()) {
-            changeSet.put(PROPERTIES, properties);
+        if (Role.USER == type) {
+            changeSet.put(CREDENTIALS, serializeDictionary(((User) role).getCredentials()));
         }
 
-        if ((Role.GROUP == type) || (Role.USER == type)) {
-            Document credentials = serializeDictionary(((User) role).getCredentials());
-            if (!credentials.isEmpty()) {
-                changeSet.put(CREDENTIALS, credentials);
-            }
-
-            if (Role.GROUP == type) {
-                changeSet.put(MEMBERS, getRoleNames(((Group) role).getMembers()));
-                changeSet.put(REQUIRED_MEMBERS, getRoleNames(((Group) role).getRequiredMembers()));
-            }
+        if (Role.GROUP == type) {
+            Group group = (Group) role;
+            changeSet.put(MEMBERS, getRoleNames(group.getMembers()));
+            changeSet.put(REQUIRED_MEMBERS, getRoleNames(group.getRequiredMembers()));
         }
 
         return new Document(SET, changeSet);
@@ -213,7 +206,7 @@ final class MongoSerializerHelper {
      * @param list the list with role names to convert, can be <code>null</code>.
      * @return a list with {@link Role}s, never <code>null</code>.
      */
-    private List<Role> getRoles(BasicDBList list) {
+    private List<Role> getRoles(List list) {
         List<Role> result = new ArrayList<Role>();
         // FELIX-4399: MongoDB does return null for empty properties...
         int size = (list == null) ? 0 : list.size();
